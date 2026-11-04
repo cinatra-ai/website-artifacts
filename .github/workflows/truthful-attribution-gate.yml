@@ -1,0 +1,31 @@
+name: truthful-attribution-gate
+# Thin caller for the organization's reusable truthful-attribution-gate. The
+# engine is pinned twice, in the uses: line and in the ref: input, and both
+# name the same commit of the shared engine, one the organization's merge
+# machinery accepts. The comment on the uses: line is a build marker of that
+# commit for the pinned-action gate, not a release tag. A maintained rollout
+# tool moves both pins together with this repository's check suite.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  # actions:read is MANDATORY: the engine at 1e40675e resolves a reusable-workflow
+  # check-run to its Actions run (GET /actions/runs/{id}) to verify referenced_workflows[]
+  # at the pinned SHA. With an explicit permissions block, any omitted scope defaults
+  # to `none`, and a called reusable workflow cannot exceed the caller's grant — so
+  # omitting this causes startup_failure (red/missing check), which WARN mode CANNOT
+  # rescue (it fails before any step runs). Do not drop this line.
+  actions: read
+
+jobs:
+  truthful-attribution-gate:                 # caller job id MUST stay this exact string
+    uses: cinatra-ai/ci/.github/workflows/truthful-attribution-gate.yml@1e40675e1642dcc32d195f27b3deb285b4d3d6fc # v0+engine.1e40675e.grant.2
+    with:
+      mode: warn
+      ref: 1e40675e1642dcc32d195f27b3deb285b4d3d6fc # engine 1e40675e, grant revision 2

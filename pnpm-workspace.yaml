@@ -1,0 +1,9 @@
+# This standalone extension repo runs its own install + typecheck + tests in CI
+# (it declares no host-internal @cinatra-ai/* peers, so the baseline CI takes the
+# full standalone path). The dev toolchain is small and entirely first-party or
+# ubiquitous — TypeScript, React, and Vitest — and Vitest's bundler (esbuild)
+# ships a postinstall that ensures its prebuilt platform binary. The pinned pnpm
+# blocks unapproved dependency build scripts by default; allow them here so a
+# clean `pnpm install` completes non-interactively. The dependency set is fully
+# controlled in package.json, so this stays within a trusted, audited tree.
+dangerouslyAllowAllBuilds: true
