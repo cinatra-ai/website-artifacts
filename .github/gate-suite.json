@@ -77,7 +77,7 @@
     {
       "context": "truthful-attribution-gate / truthful-attribution-gate",
       "workflow": "cinatra-ai/ci/.github/workflows/truthful-attribution-gate.yml",
-      "pinned": "1e40675e1642dcc32d195f27b3deb285b4d3d6fc",
+      "pinned": "7c767fe7fabc5e4fb93e2142987a2b2dff502014",
       "callerPath": ".github/workflows/truthful-attribution-gate.yml",
       "allowedEvents": [
         "pull_request",
@@ -123,5 +123,5 @@
     "scripts/lib/docs-contract-rules.mjs"
   ],
   "lastAuditedAt": "2026-11-04",
-  "auditEvidence": "2026-11-04, the birth of this suite on the pull request that adds this file (cinatra#4366): requiredContexts are the checks this repository's own workflows run on each pull request into main, copied with those workflows from cinatra-ai/cms-snapshot-artifact at 1a87c2ead539e435ab7d3e19cd03356e1b35753e, each reusable gate with the sha its caller here pins (read back from each caller's uses: line in this same commit), and highRiskPaths are the central defaults (config/high-risk-defaults.json, highRiskGlobs) of cinatra-ai/ci at 1e40675e1642dcc32d195f27b3deb285b4d3d6fc, the engine this repository's attribution caller pins, as that suite lists them; every listed context must be read green on that pull request's own head before this file's first merge."
+  "auditEvidence": "2026-11-04, the birth of this suite on the pull request that adds this file (cinatra#4366): requiredContexts are the checks this repository's own workflows run on each pull request into main, copied with those workflows from cinatra-ai/cms-snapshot-artifact at 1a87c2ead539e435ab7d3e19cd03356e1b35753e, each reusable gate with the sha its caller here pins (read back from each caller's uses: line in this same commit), and highRiskPaths are the central defaults (config/high-risk-defaults.json, highRiskGlobs) of cinatra-ai/ci at 7c767fe7fabc5e4fb93e2142987a2b2dff502014, the engine this repository's attribution caller pins, as that suite lists them; every listed context must be read green on that pull request's own head before this file's first merge."
 }
