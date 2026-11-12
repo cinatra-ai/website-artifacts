@@ -13,8 +13,27 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs"
   },
+  "dependencies": {
+    "lucide-react": "^1.20.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
@@ -34,10 +53,41 @@
             "application/json"
           ]
         }
-      }
+      },
+      "ui": {
+        "abiVersion": 1,
+        "sdkAbiRange": "^2.5.0",
+        "renderers": {
+          "detail": {
+            "entry": "./src/renderers/detail.tsx",
+            "propsApiVersion": 5
+          },
+          "listRow": {
+            "entry": "./src/renderers/list-row.tsx",
+            "propsApiVersion": 1
+          }
+        }
+      },
+      "objectTypes": [
+        {
+          "type": "@cinatra-ai/website-artifacts:page-snapshot",
+          "claim": "dedicated",
+          "dispositions": {
+            "projection": "artifact-safe",
+            "pinnable": true,
+            "snapshotPolicy": "none",
+            "sensitivity": "normal"
+          },
+          "schema": {
+            "type": "object"
+          }
+        }
+      ]
     }
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./src/renderers/detail": "./src/renderers/detail.tsx",
+    "./src/renderers/list-row": "./src/renderers/list-row.tsx"
   }
 }
