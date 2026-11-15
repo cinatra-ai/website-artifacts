@@ -22,6 +22,9 @@ on:
 
 jobs:
   release:
+    # Deleting a v* tag also fires the push event (deleted: true). The reusable
+    # workflow does not look at that, so a deletion must never call it.
+    if: github.event_name != 'push' || github.event.deleted != true
     permissions:
       contents: write       # GitHub Release decoration (PR-list notes + tarball/checksums assets)
       id-token: write       # build-provenance attestation
