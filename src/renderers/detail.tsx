@@ -1,5 +1,3 @@
-"use client";
-
 // The `detail` slot renderer of the page snapshot: the one page renderer,
 // @cinatra-ai/website-artifacts:page-diff, that both the WordPress and the
 // Drupal extension draw their pages through.
@@ -28,13 +26,36 @@
 //
 // NEVER BLANK, NEVER THROWN: content it cannot draw becomes a named floor under
 // the artifact's title and its download link.
+//
+// IT NAMES ITSELF TO THE HOST'S IDENTITY LINE (section XI.7 and XI.8: the
+// identity line of every page names the renderer that drew it, and the
+// platform it names is the one thing that tells a WordPress page from a Drupal
+// page). Two optional named exports carry what only this display knows:
+// `rendererName` and `identityFacts(content)`. A host reads them on the server
+// from the module it resolved for this slot, so this module is NOT a client
+// module: a "use client" module reaches a server as client references, whose
+// string is no string and whose function throws when called. It holds no
+// state and no handler of its own; the page view and its frame, which do, keep
+// their own "use client".
 
 import { type CSSProperties, type ReactNode } from "react";
 
 import { CmsPageView } from "../cms-page-view";
 import { byteDownloadHref, contentFloorMessage, resolveArtifactTextView } from "../content-view";
 import { PROPS_API_VERSION, type ArtifactRendererProps } from "../renderer-props";
-import { PAGE_DIFF_RENDERER } from "../renderer-identity";
+import { PAGE_DIFF_RENDERER, pageIdentityFacts, type PageIdentityFacts } from "../renderer-identity";
+
+/** The renderer this module is, for the host's identity line: "drawn by". */
+export const rendererName: string = PAGE_DIFF_RENDERER;
+
+/** The cells of the identity line only this display knows, read from the
+ * stored content the host hands it: the platform after the revision, the
+ * page's address at the close. Null wherever this display's own read of the
+ * content (resolveContentPageView, the projection checks of
+ * resolveArtifactTextView) floors it. Pure, never throws, requests nothing. */
+export function identityFacts(content: unknown): PageIdentityFacts | null {
+  return pageIdentityFacts(content);
+}
 
 const DETAIL_PROPS_API_VERSION = 5;
 

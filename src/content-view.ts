@@ -136,6 +136,132 @@ function floor(reason: ContentFloorReason): ArtifactTextView {
   return { kind: "floor", reason };
 }
 
+/** What the content projection ALONE gives, read the way this display reads
+ * it: the text of a projection of the channel's version whose figures agree,
+ * or the named floor. */
+type TextProjectionRead =
+  | { kind: "text"; text: string; revisionId: string; truncated: boolean }
+  | { kind: "floor"; reason: ContentFloorReason };
+
+function noText(reason: ContentFloorReason): TextProjectionRead {
+  return { kind: "floor", reason };
+}
+
+function readTextProjection(value: unknown): TextProjectionRead {
+  const content = value as ArtifactContentProjection | null | undefined;
+  if (content === null || content === undefined || typeof content !== "object") {
+    // The snapshot carried no projection at all — a surface that does not hand
+    // its displays content. Held APART from a projection that says, itself,
+    // that there is nothing stored: this display must never report an unwired
+    // surface as an artifact with nothing in it.
+    return noText("content-unavailable");
+  }
+
+  // The channel's OWN version is checked before anything on the projection is
+  // read, `none` included: a projection built at another channel version may
+  // spell its own absence differently, and reading it at this shape would be a
+  // guess.
+  if (content.channelVersion !== ARTIFACT_CONTENT_CHANNEL_VERSION) {
+    return noText("channel-version");
+  }
+
+  const projection = content as { [key: string]: unknown };
+  const kind = projection.kind;
+
+  if (kind === "none") {
+    const reason = projection.reason;
+    if (reason === "over-cap") return noText("content-over-cap");
+    if (reason === "unsupported-form") return noText("content-unsupported-form");
+    if (reason === "absent") return noText("content-absent");
+    return noText("invalid-content-projection");
+  }
+
+  if (kind === "configuration" || kind === "page" || kind === "object") {
+    return noText("content-not-text");
+  }
+
+  if (kind !== "text") {
+    return noText("invalid-content-projection");
+  }
+
+  const text = projection.text;
+  const contentRevisionId = projection.representationRevisionId;
+  const byteLength = projection.byteLength;
+  const projectedByteLength = projection.projectedByteLength;
+  const truncated = projection.truncated;
+  const cap = projection.cap;
+  if (
+    typeof text !== "string" ||
+    typeof contentRevisionId !== "string" ||
+    contentRevisionId.length === 0 ||
+    typeof truncated !== "boolean" ||
+    projection.encoding !== "utf-8"
+  ) {
+    return noText("invalid-content-projection");
+  }
+
+  // THE FIGURES ARE CHECKED AGAINST EACH OTHER. They decide whether the form
+  // arrived whole, so a projection whose figures cannot all be true together —
+  // `NaN`, a negative prefix, or a prefix larger than the whole or the cap — is
+  // floored, named, rather than drawn as if it were whole. The text is not
+  // measured against them: figures that agree with each other are taken as the
+  // host gives them.
+  if (
+    !isByteCount(byteLength) ||
+    !isByteCount(projectedByteLength) ||
+    !isByteCount(cap) ||
+    cap === 0 ||
+    projectedByteLength > byteLength ||
+    projectedByteLength > cap
+  ) {
+    return noText("invalid-content-projection");
+  }
+
+  // TRUNCATION AND THE NUMBERS AGREE, or neither is believed: `truncated` says
+  // the text is a PREFIX of a larger content, which is true exactly when fewer
+  // bytes are carried than the revision holds. The two disagreeing means one of
+  // them is wrong and this display cannot tell which.
+  if (truncated !== projectedByteLength < byteLength) {
+    return noText("invalid-content-projection");
+  }
+
+  return { kind: "text", text, revisionId: contentRevisionId, truncated };
+}
+
+/** The page form read from a text the projection carries whole, or the floor. */
+function readPageForm(text: string, truncated: boolean, revisionId: string): ArtifactTextView {
+  // The form is read only whole: a cut JSON document is no form at all,
+  // whatever its prefix holds, and a JSON document that is not the form is
+  // named as such.
+  if (truncated) return floor("content-over-cap");
+
+  if (text.trim().length === 0) {
+    return floor("empty-content");
+  }
+
+  const parsed = parseCmsPage(text);
+  if (!parsed.ok) return floor("content-not-page");
+  return { kind: "page", page: parsed.page, revisionId };
+}
+
+/**
+ * THE CONTENT'S OWN VERDICT: what this display draws for a content projection,
+ * by the very checks `resolveArtifactTextView` runs on the projection, in the
+ * same order. It leaves out only what is not on the projection: the props
+ * version and the pairing of the projection with the snapshot's representation
+ * (its revision and the page form's MIME type), which `resolveArtifactTextView`
+ * checks between the two. For a snapshot whose props version this display
+ * reads and whose representation is the projection's revision in the page
+ * form's MIME type, the two answer the same view. Total for every input whose
+ * fields can be read; a field whose read throws throws here as it does in the
+ * display.
+ */
+export function resolveContentPageView(content: unknown): ArtifactTextView {
+  const read = readTextProjection(content);
+  if (read.kind === "floor") return read;
+  return readPageForm(read.text, read.truncated, read.revisionId);
+}
+
 /** Resolve what to draw. Total: it returns a view for every input. */
 export function resolveArtifactTextView(props: ArtifactTextViewInput): ArtifactTextView {
   if (props === null || props === undefined || typeof props !== "object" || Array.isArray(props)) {
@@ -153,82 +279,8 @@ export function resolveArtifactTextView(props: ArtifactTextViewInput): ArtifactT
     return floor("props-version");
   }
 
-  const content = snapshot.content as ArtifactContentProjection | undefined;
-  if (content === null || content === undefined || typeof content !== "object") {
-    // The snapshot carried no projection at all — a surface that does not hand
-    // its displays content. Held APART from a projection that says, itself,
-    // that there is nothing stored: this display must never report an unwired
-    // surface as an artifact with nothing in it.
-    return floor("content-unavailable");
-  }
-
-  // The channel's OWN version is checked before anything on the projection is
-  // read, `none` included: a projection built at another channel version may
-  // spell its own absence differently, and reading it at this shape would be a
-  // guess.
-  if (content.channelVersion !== ARTIFACT_CONTENT_CHANNEL_VERSION) {
-    return floor("channel-version");
-  }
-
-  const projection = content as { [key: string]: unknown };
-  const kind = projection.kind;
-
-  if (kind === "none") {
-    const reason = projection.reason;
-    if (reason === "over-cap") return floor("content-over-cap");
-    if (reason === "unsupported-form") return floor("content-unsupported-form");
-    if (reason === "absent") return floor("content-absent");
-    return floor("invalid-content-projection");
-  }
-
-  if (kind === "configuration" || kind === "page" || kind === "object") {
-    return floor("content-not-text");
-  }
-
-  if (kind !== "text") {
-    return floor("invalid-content-projection");
-  }
-
-  const text = projection.text;
-  const contentRevisionId = projection.representationRevisionId;
-  const byteLength = projection.byteLength;
-  const projectedByteLength = projection.projectedByteLength;
-  const truncated = projection.truncated;
-  const cap = projection.cap;
-  if (
-    typeof text !== "string" ||
-    typeof contentRevisionId !== "string" ||
-    contentRevisionId.length === 0 ||
-    typeof truncated !== "boolean" ||
-    projection.encoding !== "utf-8"
-  ) {
-    return floor("invalid-content-projection");
-  }
-
-  // THE FIGURES ARE CHECKED AGAINST EACH OTHER. They decide whether the form
-  // arrived whole, so a projection whose figures cannot all be true together —
-  // `NaN`, a negative prefix, or a prefix larger than the whole or the cap — is
-  // floored, named, rather than drawn as if it were whole. The text is not
-  // measured against them: figures that agree with each other are taken as the
-  // host gives them.
-  if (
-    !isByteCount(byteLength) ||
-    !isByteCount(projectedByteLength) ||
-    !isByteCount(cap) ||
-    cap === 0 ||
-    projectedByteLength > byteLength ||
-    projectedByteLength > cap
-  ) {
-    return floor("invalid-content-projection");
-  }
-
-  // TRUNCATION AND THE NUMBERS AGREE, or neither is believed: `truncated` says
-  // the text is a PREFIX of a larger content, which is true exactly when fewer
-  // bytes are carried than the revision holds. The two disagreeing means one of
-  // them is wrong and this display cannot tell which.
-  if (truncated !== projectedByteLength < byteLength) {
-    return floor("invalid-content-projection");
-  }
+  const read = readTextProjection(snapshot.content);
+  if (read.kind === "floor") return read;
 
   // THE PINNED REVISION AND THE DRAWN REVISION ARE THE SAME ONE, or nothing is
   // drawn. The surface says which revision it is showing; the channel says
@@ -241,7 +293,7 @@ export function resolveArtifactTextView(props: ArtifactTextViewInput): ArtifactT
     representation === null ||
     representation === undefined ||
     typeof representation !== "object" ||
-    representation.revisionId !== contentRevisionId
+    representation.revisionId !== read.revisionId
   ) {
     return floor("content-revision-mismatch");
   }
@@ -250,16 +302,5 @@ export function resolveArtifactTextView(props: ArtifactTextViewInput): ArtifactT
   // representation is not the form, whatever it holds.
   if (!isPageFormMime(representation.mime)) return floor("content-not-page");
 
-  // The form is read only whole: a cut JSON document is no form at all,
-  // whatever its prefix holds, and a JSON document that is not the form is
-  // named as such.
-  if (truncated) return floor("content-over-cap");
-
-  if (text.trim().length === 0) {
-    return floor("empty-content");
-  }
-
-  const parsed = parseCmsPage(text);
-  if (!parsed.ok) return floor("content-not-page");
-  return { kind: "page", page: parsed.page, revisionId: contentRevisionId };
+  return readPageForm(read.text, read.truncated, read.revisionId);
 }
