@@ -210,13 +210,18 @@ for (const fixture of PAGE_FORMS) {
       review,
       edit: { kind: "read-only", channelVersion: 2, reason: "read-only-surface" },
     });
-    const normalizeVersion = (html: string): string => html.replace('data-props-api-version="5"', 'data-props-api-version="2"');
+    // The continued reading's anchor (tests/cms-page-anchors.test.tsx) draws no
+    // words; it is taken out before the view is compared with the legacy one.
+    const READING_ANCHOR = /<p data-conformance-id="(?:cms|drupal)-page-continued-reading"[^>]*>(?:<span [^>]*><\/span>)?<\/p>/g;
+    const withoutReadingAnchor = (html: string): string => html.replace(READING_ANCHOR, "");
+    const normalizeVersion = (html: string): string =>
+      withoutReadingAnchor(html.replace('data-props-api-version="5"', 'data-props-api-version="2"'));
     const assertNoPublicationSentence = (html: string): void => {
       expect(html).not.toContain("The change went to the site");
       expect(html).not.toContain("published it at");
-      expect(html).not.toContain("cms-page-continued-reading");
       expect(html).not.toContain("09:20");
-      expect(html).not.toMatch(/continued|decided on the revision above/i);
+      expect(withoutReadingAnchor(html)).not.toMatch(/continued|decided on the revision above/i);
+      expect(withoutReadingAnchor(html)).not.toContain("review.");
     };
 
     it("admits v5 while retaining the complete legacy view, frozen input and read-only controls", () => {

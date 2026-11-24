@@ -24,6 +24,17 @@
 // can hand one only by mounting the exported CmsPageView itself, and this
 // display only in a later version that reads one.
 //
+// THE CONFORMANCE ANCHORS (cinatra#3092, sections XI.8 and XI.7). The root
+// names the display: `cms-page-display` for a WordPress page and on every
+// floor, `drupal-page-display` for a Drupal page, because the drawing gives the
+// one view a name per platform. Once the review is continued (the version 5
+// snapshot's `review.reading`), the continued reading's anchor is drawn last
+// inside the root, under the view: a paragraph binding the reading in the
+// `empty` state, with the decision time's span when the host handed
+// `review.decidedAt`. It draws no words, because its sentence is a claim about
+// what the site published and the host hands no `review.effect`, and it has no
+// box of its own (`display: contents`). Nothing a person can see changes.
+//
 // NEVER BLANK, NEVER THROWN: content it cannot draw becomes a named floor under
 // the artifact's title and its download link.
 //
@@ -107,6 +118,34 @@ function floorTitle(props: unknown): string {
   return typeof title === "string" && title.trim() !== "" ? title : FALLBACK_TITLE;
 }
 
+/** The display's conformance anchor names, per platform the form serves. */
+const ANCHORS = {
+  wordpress: { display: "cms-page-display", reading: "cms-page-continued-reading" },
+  drupal: { display: "drupal-page-display", reading: "drupal-page-continued-reading" },
+} as const;
+
+/** A canonical ISO instant, the one form the host hands a decision time in. */
+function isInstant(value: unknown): value is string {
+  return typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
+    && Number.isFinite(Date.parse(value))
+    && new Date(value).toISOString() === value;
+}
+
+/** The continued reading's anchor: present only in a version 5 snapshot whose
+ * review reads continued. The review is read loosely: a shape this display does
+ * not know is no continued reading. */
+function ContinuedReading({ id, review }: { id: string; review: unknown }): ReactNode {
+  if (review === null || typeof review !== "object") return null;
+  const { reading, decidedAt } = review as { reading?: unknown; decidedAt?: unknown };
+  if (reading !== "continued") return null;
+  return (
+    <p data-conformance-id={id} data-field="reading=review.reading" data-state="empty" style={{ display: "contents" }}>
+      {isInstant(decidedAt) ? <span data-field="decision=review.decidedAt" /> : null}
+    </p>
+  );
+}
+
 /**
  * The default-exported detail renderer. The host mounts this in the main realm
  * with the shared React singleton; it owns no React root.
@@ -139,16 +178,19 @@ export default function PageDiffDetail(props: ArtifactRendererProps): ReactNode 
   if (view.kind === "page") {
     // THE PAGE CONTENT FORM is one view: the frame's place, the changes beneath
     // it and the link under them — nothing else around it.
+    const anchors = ANCHORS[view.page.system];
+    const review = isDetailSnapshot ? (props as { review?: unknown }).review : undefined;
     return (
-      <div style={wrapStyle} data-cms-artifact-detail data-renderer={PAGE_DIFF_RENDERER} data-props-api-version={propsApiVersion}>
+      <div style={wrapStyle} data-conformance-id={anchors.display} data-cms-artifact-detail data-renderer={PAGE_DIFF_RENDERER} data-props-api-version={propsApiVersion}>
         <CmsPageView page={view.page} revisionId={view.revisionId} site={null} />
+        <ContinuedReading id={anchors.reading} review={review} />
       </div>
     );
   }
   const title = floorTitle(props);
   const download = byteDownloadHref(props);
   return (
-    <div style={wrapStyle} data-cms-artifact-detail data-renderer={PAGE_DIFF_RENDERER} data-props-api-version={propsApiVersion}>
+    <div style={wrapStyle} data-conformance-id={ANCHORS.wordpress.display} data-cms-artifact-detail data-renderer={PAGE_DIFF_RENDERER} data-props-api-version={propsApiVersion}>
       <div style={headerStyle}>
         <p style={titleStyle} title={title}>
           {title}
