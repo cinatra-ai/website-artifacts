@@ -32,8 +32,9 @@
 // inside the root, under the view: a paragraph binding the reading in the
 // `empty` state, with the decision time's span when the host handed
 // `review.decidedAt`. It draws no words, because its sentence is a claim about
-// what the site published and the host hands no `review.effect`, and it has no
-// box of its own (`display: contents`). Nothing a person can see changes.
+// what the site published and the host hands no `review.effect`, and it takes no
+// part in the layout: out of the flow with no size, so the root's column counts
+// no item and adds no gap for it. Nothing a person can see changes.
 //
 // NEVER BLANK, NEVER THROWN: content it cannot draw becomes a named floor under
 // the artifact's title and its download link.
@@ -132,6 +133,20 @@ function isInstant(value: unknown): value is string {
     && new Date(value).toISOString() === value;
 }
 
+/** The anchor takes no part in the layout: out of the flow, so the column
+ * above (a flex container with a gap) counts no item for it and adds no gap, and
+ * with no size, no margin, no padding and no border, so it draws nothing. A
+ * `display: contents` box would instead hand its span to that column as an item. */
+const anchorStyle: CSSProperties = {
+  position: "absolute",
+  width: 0,
+  height: 0,
+  margin: 0,
+  padding: 0,
+  border: 0,
+  overflow: "hidden",
+};
+
 /** The continued reading's anchor: present only in a version 5 snapshot whose
  * review reads continued. The review is read loosely: a shape this display does
  * not know is no continued reading. */
@@ -140,7 +155,7 @@ function ContinuedReading({ id, review }: { id: string; review: unknown }): Reac
   const { reading, decidedAt } = review as { reading?: unknown; decidedAt?: unknown };
   if (reading !== "continued") return null;
   return (
-    <p data-conformance-id={id} data-field="reading=review.reading" data-state="empty" style={{ display: "contents" }}>
+    <p data-conformance-id={id} data-field="reading=review.reading" data-state="empty" style={anchorStyle}>
       {isInstant(decidedAt) ? <span data-field="decision=review.decidedAt" /> : null}
     </p>
   );
