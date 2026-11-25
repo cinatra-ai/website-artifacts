@@ -49,8 +49,8 @@ describe("the detail module names the renderer it is", () => {
   // A HOST READS THESE EXPORTS ON THE SERVER, from the module it resolves for
   // the detail slot. A module marked "use client" is handed to a server as
   // client references: its string reads as a reference and its function throws
-  // when called. So the detail module carries no such directive; the client
-  // parts it draws (the page view and its frame) keep their own.
+  // when called. So the detail module carries no such directive; the page view
+  // it draws keeps its own.
   it("is not a client module, so a server can read its named exports", () => {
     const source = readFileSync(fileURLToPath(new URL("../src/renderers/detail.tsx", import.meta.url)), "utf8");
     expect(source).not.toMatch(/^\s*["']use client["']/m);

@@ -13,11 +13,8 @@
 // TOTAL: every input returns a view, including an input that is not a snapshot
 // at all. Nothing here reaches the network, and nothing downstream of it
 // requests the content either — the whole point of the channel is that the
-// content is already here. The one load downstream that the page view can
-// cause is the page frame, whose first request is the address the form gives
-// for the published page, and only on the origin of the site the page view is
-// handed (boundFrameAddress of the page model); the detail display hands it
-// none, so it causes none.
+// content is already here. Nothing downstream requests anything either: the
+// page view draws no frame, only a link the reader may follow.
 
 import {
   ARTIFACT_CONTENT_CHANNEL_VERSION,

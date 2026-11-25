@@ -4,23 +4,16 @@
 // A page a run proposes to change is one drawing, whichever system holds it.
 // This package owns the page snapshot type an agent extension is to file for
 // such a change, and the ONE page renderer that draws it,
-// @cinatra-ai/website-artifacts:page-diff: the frame's place (the page
-// embedded in its frame on the site the page view is handed, else the gap
-// named there), a diff of only the changed excerpts beneath it, each in the
-// page's own formatting, and a link that opens the page in the CMS. Neither
-// the WordPress nor the Drupal extension is to write a page renderer of its
-// own.
+// @cinatra-ai/website-artifacts:page-diff: a diff of only the changed excerpts,
+// each in the page's own formatting, and directly under it a link that opens
+// the page in the CMS. It draws no frame of the page. Neither the WordPress nor
+// the Drupal extension is to write a page renderer of its own.
 //
 // THE FORM ARRIVES ON THE PROPS, through the versioned server content channel,
 // read from the pinned revision on the server and capped there. The display
-// requests neither the form nor any bytes of its own, and requests no host port.
-// The one load the page view can cause is its page frame, whose first
-// request is the address the form gives for the published page, and only when
-// the frame-address rule admits it and it is on the origin of the site the
-// page view is handed; the detail display reads no site from the snapshot and
-// hands the page view none, so it causes no load and the frame's place names
-// the gap. Anything the channel cannot supply degrades to a NAMED floor, never
-// a blank.
+// requests neither the form nor any bytes of its own, and requests no host port,
+// and it causes no load. Anything the channel cannot supply degrades to a NAMED
+// floor, never a blank.
 
 // The slot renderers (default-exported React components the host mounts).
 export { default as PageDiffDetail } from "./renderers/detail";
@@ -44,12 +37,9 @@ export { CmsPageView } from "./cms-page-view";
 export {
   CMS_PAGE_FORM_MARKER,
   CMS_PAGE_FORM_VERSION,
-  FRAME_WATCHDOG_MS,
   parseCmsPage,
-  framableAddress,
-  frameAddress,
-  boundFrameAddress,
-  frameState,
+  httpsAddress,
+  identityAddress,
   wordDiff,
   excerptGroups,
 } from "./cms-page-model";

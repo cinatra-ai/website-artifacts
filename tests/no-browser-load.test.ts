@@ -1,12 +1,13 @@
 // @vitest-environment node
-// THE DISPLAY REACHES THE NETWORK BY NO ROAD BUT ITS ONE PAGE FRAME.
+// THE DISPLAY REACHES THE NETWORK BY NO ROAD.
 //
 // The content channel exists because a display that reaches for its own bytes
 // from the browser paints nothing inside a third-party application: the address
 // is there, but the credential that would authorize it is not. Moving the
 // content onto the props is only half of that; the other half is that no road
-// back to the network, other than the one page frame below, survives in the
-// shipped source.
+// back to the network survives in the shipped source. The display draws no
+// frame of the page: the host hands it no origin of the connected site, and the
+// page is opened in the CMS by the link the reader follows.
 //
 // SO THIS SCANS THE SHIPPED SOURCE ITSELF rather than one render. A spy over one
 // mounted component proves nothing about the branch that was not taken, and a
@@ -130,18 +131,7 @@ describe("the guard itself is live", () => {
   });
 });
 
-/** The one subframe the approved drawing asks for: the page embedded in its
- * frame (cinatra#3092). It is admitted in exactly this one file and for the
- * subframe pattern alone; every other file and every other pattern is scanned
- * as before. The frame's first request is only the address the page form
- * gives for the published page, once the page view admits it by the model's
- * site-bound rule (the frame-address rule, on the origin of the site the view
- * is handed), never this package's bytes, and the arm below pins how it is
- * drawn. */
-const PAGE_FRAME = "renderers/page-frame.tsx";
-const ADMITTED: Record<string, string[]> = { "a subframe": [PAGE_FRAME] };
-
-describe("the shipped source holds no road to the network but its one page frame", () => {
+describe("the shipped source holds no road to the network", () => {
   const files = sourceFiles(SRC);
 
   it("ships at least one source file to scan", () => {
@@ -149,29 +139,11 @@ describe("the shipped source holds no road to the network but its one page frame
   });
 
   for (const { what, pattern } of FORBIDDEN) {
-    const admitted = ADMITTED[what] ?? [];
-    const except = admitted.length > 0 ? ` but ${admitted.join(" and ")}` : "";
-    it(`contains ${what} nowhere in src/${except}`, () => {
+    it(`contains ${what} nowhere in src/`, () => {
       const offenders = files
         .filter((file) => pattern.test(codeOnly(readFileSync(file, "utf8"))))
-        .map((file) => file.slice(SRC.length + 1))
-        .filter((file) => !admitted.includes(file));
+        .map((file) => file.slice(SRC.length + 1));
       expect(offenders).toEqual([]);
     });
   }
-
-  it("draws its one frame only at the address the page view hands it, sandboxed", () => {
-    const code = codeOnly(readFileSync(join(SRC, PAGE_FRAME), "utf8"));
-    const frames = code.match(/<\s*iframe\b[^>]*>/gi) ?? [];
-    expect(frames).toHaveLength(1);
-    const frame = frames[0];
-    expect(frame).toMatch(/\bsrc=\{address\}/);
-    expect(frame).toMatch(/\bsandbox=""/);
-    expect(frame).toMatch(/\breferrerPolicy="no-referrer"/);
-    expect(frame).toMatch(/\bloading="lazy"/);
-    // The address is the component's own prop, handed in already admitted by
-    // the page view through the model's site-bound rule; the frame reads
-    // nothing else.
-    expect(code).toMatch(/export\s+function\s+\w+\s*\(\s*\{[^}]*\baddress\b[^}]*\}/);
-  });
 });

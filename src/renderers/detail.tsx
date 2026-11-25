@@ -2,9 +2,10 @@
 // @cinatra-ai/website-artifacts:page-diff, that both the WordPress and the
 // Drupal extension draw their pages through.
 //
-// ONE VIEW: the frame's place, the changes beneath it and the link under
-// them, drawn by `CmsPageView` from the page content form an agent extension
-// files. The root names the renderer that drew it, on the page and on every
+// ONE VIEW: the changes and the link that opens the page in the CMS directly
+// under them, drawn by `CmsPageView` from the page content form an agent
+// extension files. It draws no frame of the page and no box in its place: the
+// host hands a display no origin of the connected site. The root names the renderer that drew it, on the page and on every
 // floor alike.
 //
 // IT DRAWS FROM THE CONTENT CHANNEL AND FROM NOTHING ELSE. The form arrives on
@@ -14,15 +15,10 @@
 // a display reaching for bytes from the browser carries no credential and
 // paints an empty plate.
 //
-// IT CAUSES NO LOAD. The page view's frame (renderers/page-frame.tsx) requests
-// an address only on the origin of the site the view is handed, which is to
-// come from a record the host keeps, because the address the form gives is the
-// agent's text and may name any destination. This display reads no site from
-// the snapshot and hands the page view none (site={null}): the frame's place
-// names the gap, and the changes beneath it are drawn as always. Within the
-// source of this package nothing hands the page view a site; an application
-// can hand one only by mounting the exported CmsPageView itself, and this
-// display only in a later version that reads one.
+// IT CAUSES NO LOAD. Nothing it draws has a subresource address; the only
+// address in the markup is the CMS link's href, which the browser opens only
+// when the reader follows it, and which is drawn only for an https address
+// (httpsAddress of the page model).
 //
 // THE CONFORMANCE ANCHORS (cinatra#3092, sections XI.8 and XI.7). The root
 // names the display: `cms-page-display` for a WordPress page and on every
@@ -47,8 +43,7 @@
 // from the module it resolved for this slot, so this module is NOT a client
 // module: a "use client" module reaches a server as client references, whose
 // string is no string and whose function throws when called. It holds no
-// state and no handler of its own; the page view and its frame, which do, keep
-// their own "use client".
+// state and no handler of its own; the page view keeps its own "use client".
 
 import { type CSSProperties, type ReactNode } from "react";
 
@@ -191,13 +186,13 @@ export default function PageDiffDetail(props: ArtifactRendererProps): ReactNode 
       ? PROPS_API_VERSION
       : undefined;
   if (view.kind === "page") {
-    // THE PAGE CONTENT FORM is one view: the frame's place, the changes beneath
-    // it and the link under them — nothing else around it.
+    // THE PAGE CONTENT FORM is one view: the changes and the link under them —
+    // nothing else around it.
     const anchors = ANCHORS[view.page.system];
     const review = isDetailSnapshot ? (props as { review?: unknown }).review : undefined;
     return (
       <div style={wrapStyle} data-conformance-id={anchors.display} data-cms-artifact-detail data-renderer={PAGE_DIFF_RENDERER} data-props-api-version={propsApiVersion}>
-        <CmsPageView page={view.page} revisionId={view.revisionId} site={null} />
+        <CmsPageView page={view.page} revisionId={view.revisionId} />
         <ContinuedReading id={anchors.reading} review={review} />
       </div>
     );

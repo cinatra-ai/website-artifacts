@@ -3,9 +3,8 @@
 //
 // The projected page form must reach the DRAWN output, on the first-party
 // snapshot and on the one a host builds inside a third-party application alike,
-// and no request may leave the display while it happens. The one subresource
-// the page view can draw is the page's frame, and only on the origin of the
-// site the view is handed; this display hands it none, so it draws none.
+// and no request may leave the display while it happens. The display draws no
+// frame of the page and no other subresource.
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -85,13 +84,14 @@ describe("the detail slot draws the projected page form", () => {
     }
   });
 
-  it("draws no subresource element: no snapshot hands the display a site, so the frame's place names the gap", () => {
+  it("draws no subresource element, no frame of the page and no box in its place", () => {
     const { html } = drawWatched(<PageDiffDetail {...props(textContent(FORM))} />);
     expect(html).toContain('data-cms-page="page"');
     expect(html.match(/<iframe\b/g) ?? []).toHaveLength(0);
     expect(html.match(/\bsrc="([^"]*)"/g) ?? []).toEqual([]);
     expect(html).not.toContain(PAGE_ADDRESS);
-    expect(html).toContain("data-cms-page-gap");
+    expect(html).not.toContain("data-cms-page-gap");
+    expect(html).not.toContain("cannot be shown");
     expect(html).not.toContain("<img");
   });
 });

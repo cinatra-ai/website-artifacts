@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { excerptGroups, framableAddress, parseCmsPage, wordDiff } from "../src/cms-page-model";
+import { excerptGroups, httpsAddress, parseCmsPage, wordDiff } from "../src/cms-page-model";
 import { PAGE_ADDRESS, PAGE_TITLE, WORDPRESS_FORM } from "./cms-page-fixture";
 
 const text = (value: unknown): string => JSON.stringify(value);
@@ -72,15 +72,15 @@ describe("the page content form", () => {
   });
 
   it("M7 admits only an https address without credentials", () => {
-    expect(framableAddress("http://acme.example/pricing")).toBeNull();
-    expect(framableAddress("javascript:alert(1)")).toBeNull();
-    expect(framableAddress("/pricing")).toBeNull();
-    expect(framableAddress("https://editor@acme.example/pricing")).toBeNull();
-    expect(framableAddress(42)).toBeNull();
-    expect(framableAddress(PAGE_ADDRESS)).toBe(PAGE_ADDRESS);
+    expect(httpsAddress("http://acme.example/pricing")).toBeNull();
+    expect(httpsAddress("javascript:alert(1)")).toBeNull();
+    expect(httpsAddress("/pricing")).toBeNull();
+    expect(httpsAddress("https://editor@acme.example/pricing")).toBeNull();
+    expect(httpsAddress(42)).toBeNull();
+    expect(httpsAddress(PAGE_ADDRESS)).toBe(PAGE_ADDRESS);
 
-    // A form that parses keeps the gap reachable: the address is normalized,
-    // never a reason to floor.
+    // A form that parses keeps the excerpts reachable: an address is
+    // normalized, never a reason to floor.
     const parsed = parseCmsPage(
       text({ ...WORDPRESS_FORM.form, page: { title: PAGE_TITLE, address: "http://acme.example/pricing" } }),
     );

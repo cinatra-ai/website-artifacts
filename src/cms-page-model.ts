@@ -1,11 +1,10 @@
 // THE PAGE CONTENT FORM — what an agent extension files when its run proposes a
 // change to a page on a WordPress or a Drupal site. The agent creates the
 // artifact and all of its content: the proposed words and the published words
-// of the regions the change touches. The page view draws the page from that
-// content. Besides the form, the view is handed the revision it stamps and the
-// site its frame is bound to (boundFrameAddress, below), and the first request
-// of its frame is on that site's origin only; a page there may redirect the
-// frame. The detail display around the view also reads the artifact's title,
+// of the regions the change touches. The page view draws the change from that
+// content, and the link that opens the page in the CMS from the address the
+// form gives for it. Besides the form, the view is handed the revision it
+// stamps. The detail display around the view also reads the artifact's title,
 // its download address and the props version, for its floors and its root.
 //
 // PURE AND TOTAL: this module imports nothing, reaches nothing and never
@@ -17,9 +16,6 @@
 /** The marker key the form carries, and the form version this display reads. */
 export const CMS_PAGE_FORM_MARKER = "cinatraCmsPage";
 export const CMS_PAGE_FORM_VERSION = 1;
-
-/** How long the frame may take to load before it names the gap instead. */
-export const FRAME_WATCHDOG_MS = 10000;
 
 /** The most excerpts one form may carry. */
 export const CMS_PAGE_MAX_EXCERPTS = 200;
@@ -49,13 +45,12 @@ export interface CmsPage {
   system: CmsPageSystem;
   page: {
     title: string;
-    /** The frame's address: the https address the form gives for the
-     * published page, when the frame-address rule admits it. The frame
-     * requests it only on the origin of the site it is bound to (see
-     * boundFrameAddress). */
+    /** The https address the form gives for the published page, when the
+     * identity-address rule admits it. It is drawn as text on the identity line
+     * and is never a link and never loaded. */
     address: string | null;
-    /** The https address that opens the page in the CMS, when the
-     * framable-address rule admits it (a link the reader opens). */
+    /** The https address that opens the page in the CMS, when the https-address
+     * rule admits it (the link the reader opens). */
     cmsAddress: string | null;
   };
   /** When the agent says it read the published words, as it states it: the
@@ -77,8 +72,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** How the text of an address the rules read starts: `https://`, in any case.
- * A browser resolves the address a link or a frame is handed against the page
- * that draws it. An https text without its two slashes (`https:acme.example/x`,
+ * A browser resolves the address a link is handed against the page that draws
+ * it. An https text without its two slashes (`https:acme.example/x`,
  * `https:/acme.example/../x`, `https:\acme.example\x`) is read there as a path
  * on that page's own origin, although a URL parser without a base reads it on
  * acme.example. A text that starts with `https://` is read on the same origin
@@ -87,10 +82,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * space among them, is refused too. */
 const HTTPS_TEXT = /^https:\/\//i;
 
-/** The address, when it may be put in front of a reader: its text starts with
- * `https://` (above), it parses as a URL, its protocol is https, and it carries
- * no user name or password. Else null. The text is returned as it is given. */
-export function framableAddress(value: unknown): string | null {
+/** The address, when it may be put in front of a reader as a link: its text
+ * starts with `https://` (above), it parses as URL, its protocol is https, and
+ * it carries no user name or password. Else null, and no link is drawn. The
+ * text is returned as it is given. Any other scheme (`http:`, `javascript:`,
+ * `data:`, a relative path) is refused. A CMS may sit on a private name, so the
+ * host is not restricted here: the reader opens it by their own act. */
+export function httpsAddress(value: unknown): string | null {
   if (typeof value !== "string" || !HTTPS_TEXT.test(value)) return null;
   let url: URL;
   try {
@@ -102,26 +100,22 @@ export function framableAddress(value: unknown): string | null {
   return value;
 }
 
-/** The top-level names the frame-address rule refuses, as names that resolve
- * only inside a reader's own machine or network. Not every such name: see
- * frameAddress. */
+/** The top-level names the identity-address rule refuses, as names that
+ * resolve only inside a reader's own machine or network. Not every such name:
+ * see identityAddress. */
 const LOCAL_NAMES: readonly string[] = ["localhost", "local", "internal"];
 
-/** The frame-address rule, which reads the first address as text: a framable
- * address (above) whose host, once one trailing dot is dropped, is a name of
- * two labels or more, none of them empty, on the default port 443 (the URL
- * parser drops a written-out `:443`, so that form is admitted too). Refused beyond the framable-address
- * rule: an IP literal; `home.arpa`, `localhost` and a name under `.localhost`,
- * `.local`, `.internal` or `.home.arpa`; a one-label name; a name with an empty
- * label; and any port other than 443. Among the names a URL parser reads, no
- * other is refused: a name under any other suffix, a private-use one such as
- * `.lan` or `.corp` among them, is admitted, and where a name resolves is not
- * known here. So this rule alone does not keep a reader's browser from a
- * private address, and the frame does not request an address this rule alone
- * admits: it requests one only on the origin of the site it is bound to
- * (boundFrameAddress, below). Else null. */
-export function frameAddress(value: unknown): string | null {
-  const admitted = framableAddress(value);
+/** The rule for the page's own address, which the identity line writes as
+ * text: an https address (above) whose host, once one trailing dot is dropped,
+ * is a name of two labels or more, none of them empty, on the default port 443
+ * (the URL parser drops a written-out `:443`, so that form is admitted too).
+ * Refused beyond the https-address rule: an IP literal; `home.arpa`,
+ * `localhost` and a name under `.localhost`, `.local`, `.internal` or
+ * `.home.arpa`; a one-label name; a name with an empty label; and any port
+ * other than 443. The address is only written, never opened or loaded. Else
+ * null, and the identity line carries no address. */
+export function identityAddress(value: unknown): string | null {
+  const admitted = httpsAddress(value);
   if (admitted === null) return null;
   let url: URL;
   try {
@@ -140,38 +134,6 @@ export function frameAddress(value: unknown): string | null {
   if (/^[0-9]+$/.test(top) || LOCAL_NAMES.includes(top)) return null;
   if (host === "home.arpa" || host.endsWith(".home.arpa")) return null;
   return admitted;
-}
-
-/** The address the page frame requests: an address the frame-address rule
- * (above) admits, on the origin of the site the frame is bound to. The site is
- * to be the site's own address, from a record the host keeps and never from
- * the content an agent files: this rule cannot tell where a text came from.
- * The site must be a framable address (a text that starts with `https://`,
- * with no user name or password), and the two must have one origin as a URL
- * parser writes it (scheme, host and port; so a site written with a trailing
- * dot or a `www.` that the address lacks binds nothing). The address is
- * returned as it is given; because its text starts with `https://`, a browser
- * that resolves it against the reviewer's page requests it on the origin
- * compared here. Else null: with no site, a site that is not a framable
- * address or a site of another origin, the frame requests no address and its
- * place names the gap. The rule reads the first address only: a page on the
- * bound site may redirect the frame to another address, inside its sandbox. */
-export function boundFrameAddress(address: unknown, site: unknown): string | null {
-  const admitted = frameAddress(address);
-  const bound = framableAddress(site);
-  if (admitted === null || bound === null) return null;
-  try {
-    return new URL(admitted).origin === new URL(bound).origin ? admitted : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Whether the frame is drawn or the gap is named in its place. */
-export function frameState(input: { address: string | null; loaded: boolean; elapsedMs: number }): "frame" | "gap" {
-  if (input.address === null) return "gap";
-  if (!input.loaded && input.elapsedMs >= FRAME_WATCHDOG_MS) return "gap";
-  return "frame";
 }
 
 function sameWords(a: string, b: string): boolean {
@@ -235,8 +197,8 @@ export function parseCmsPage(text: string): CmsPageParse {
       system: system as CmsPageSystem,
       page: {
         title: page.title,
-        address: frameAddress(page.address),
-        cmsAddress: framableAddress(page.cmsAddress),
+        address: identityAddress(page.address),
+        cmsAddress: httpsAddress(page.cmsAddress),
       },
       readAt: typeof value.readAt === "string" ? value.readAt : null,
       excerpts: parsed,
