@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { excerptGroups, httpsAddress, parseCmsPage, wordDiff } from "../src/cms-page-model";
+import { excerptGroups, parseCmsPage, webAddress, wordDiff } from "../src/cms-page-model";
 import { PAGE_ADDRESS, PAGE_TITLE, WORDPRESS_FORM } from "./cms-page-fixture";
 
 const text = (value: unknown): string => JSON.stringify(value);
@@ -71,23 +71,35 @@ describe("the page content form", () => {
     expect(parseCmsPage(text({ ...WORDPRESS_FORM.form, page: { address: PAGE_ADDRESS } }))).toEqual(malformed);
   });
 
-  it("M7 admits only an https address without credentials", () => {
-    expect(httpsAddress("http://acme.example/pricing")).toBeNull();
-    expect(httpsAddress("javascript:alert(1)")).toBeNull();
-    expect(httpsAddress("/pricing")).toBeNull();
-    expect(httpsAddress("https://editor@acme.example/pricing")).toBeNull();
-    expect(httpsAddress(42)).toBeNull();
-    expect(httpsAddress(PAGE_ADDRESS)).toBe(PAGE_ADDRESS);
+  it("M7 admits an http or https address without credentials and nothing else", () => {
+    expect(webAddress("http://acme.example/pricing")).toBe("http://acme.example/pricing");
+    expect(webAddress("HTTP://acme.example/pricing")).toBe("HTTP://acme.example/pricing");
+    expect(webAddress(PAGE_ADDRESS)).toBe(PAGE_ADDRESS);
+    expect(webAddress("javascript:alert(1)")).toBeNull();
+    expect(webAddress("/pricing")).toBeNull();
+    expect(webAddress("https://editor@acme.example/pricing")).toBeNull();
+    expect(webAddress("http://editor@acme.example/pricing")).toBeNull();
+    expect(webAddress(42)).toBeNull();
 
     // A form that parses keeps the excerpts reachable: an address is
     // normalized, never a reason to floor.
     const parsed = parseCmsPage(
-      text({ ...WORDPRESS_FORM.form, page: { title: PAGE_TITLE, address: "http://acme.example/pricing" } }),
+      text({
+        ...WORDPRESS_FORM.form,
+        page: { title: PAGE_TITLE, address: "http://acme.example/pricing", cmsAddress: "http://acme.example/wp-admin/" },
+      }),
     );
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.page.page.address).toBeNull();
-    expect(parsed.page.page.cmsAddress).toBeNull();
+    expect(parsed.page.page.address).toBe("http://acme.example/pricing");
+    expect(parsed.page.page.cmsAddress).toBe("http://acme.example/wp-admin/");
+    const refused = parseCmsPage(
+      text({ ...WORDPRESS_FORM.form, page: { title: PAGE_TITLE, address: "javascript:alert(1)", cmsAddress: "data:text/html,x" } }),
+    );
+    expect(refused.ok).toBe(true);
+    if (!refused.ok) return;
+    expect(refused.page.page.address).toBeNull();
+    expect(refused.page.page.cmsAddress).toBeNull();
   });
 
   it("M8 marks removed and added words in place", () => {

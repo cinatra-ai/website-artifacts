@@ -17,8 +17,8 @@
 //
 // IT CAUSES NO LOAD. Nothing it draws has a subresource address; the only
 // address in the markup is the CMS link's href, which the browser opens only
-// when the reader follows it, and which is drawn only for an https address
-// (httpsAddress of the page model).
+// when the reader follows it, and which is drawn only for an http or https
+// address (webAddress of the page model).
 //
 // THE CONFORMANCE ANCHORS (cinatra#3092, sections XI.8 and XI.7). The root
 // names the display: `cms-page-display` for a WordPress page and on every

@@ -38,7 +38,7 @@ export {
   CMS_PAGE_FORM_MARKER,
   CMS_PAGE_FORM_VERSION,
   parseCmsPage,
-  httpsAddress,
+  webAddress,
   identityAddress,
   wordDiff,
   excerptGroups,

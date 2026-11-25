@@ -16,16 +16,21 @@
 // taken from the content.
 //
 // THE LINK'S ADDRESS comes from the artifact content, which an agent wrote, so
-// it is drawn only when httpsAddress admits it: a text that starts with
-// `https://`, parses as an https URL and carries no user name or password. Any
-// other text (`http:`, `javascript:`, `data:`, a relative path, an https text
-// without its two slashes) draws no link.
+// it is drawn only when webAddress admits it: a text that starts with
+// `http://` or `https://`, holds no control, whitespace or backslash character,
+// parses as an http or https URL and carries no user name or password. Plain
+// `http:` is a legitimate site address (self-hosted and internal sites) and
+// draws the link as `https:` does: the design draws Open in the CMS the same
+// way in every reading. Any other text (`javascript:`, `data:`, `file:`, `blob:`,
+// a relative path, a text without its two slashes, credentials, an address that
+// does not parse) draws no link: that is a defensive floor for malformed or
+// unsafe data, not a state the design draws.
 
 import { type CSSProperties, type ReactNode } from "react";
 
 import {
   excerptGroups,
-  httpsAddress,
+  webAddress,
   wordDiff,
   type CmsPage,
   type CmsPageExcerpt,
@@ -173,7 +178,7 @@ function Excerpts({ entries }: { entries: CmsPageExcerptEntry[] }): ReactNode {
 /** The one view: the changed excerpts, the link that opens the page in the CMS
  * directly under them. */
 export function CmsPageView({ page, revisionId }: { page: CmsPage; revisionId: string }): ReactNode {
-  const cmsAddress = httpsAddress(page.page.cmsAddress);
+  const cmsAddress = webAddress(page.page.cmsAddress);
   return (
     <div style={rootStyle} data-cms-page="page" data-cms-system={page.system} data-revision={revisionId}>
       <p style={labelStyle} data-cms-page-label>

@@ -92,10 +92,25 @@ describe("identityFacts names the platform and the address of the page it draws"
     ).toEqual(["www.acme.example/pricing/plans"]);
   });
 
+  it("draws the address of a page on a plain http site as it draws an https one: host and path", () => {
+    expect(facts(page(withPage(WORDPRESS_FORM, { address: "http://acme.example/pricing" })))?.closing).toEqual(["acme.example/pricing"]);
+    expect(facts(page(withPage(DRUPAL_FORM, { address: "http://www.acme.example/pricing/plans?preview=1#team" })))?.closing).toEqual([
+      "www.acme.example/pricing/plans",
+    ]);
+    expect(facts(page(withPage(WORDPRESS_FORM, { address: "http://acme.example:80/" })))?.closing).toEqual(["acme.example"]);
+  });
+
+  it("closes the line with no address for an address of another scheme, with credentials or with a control character", () => {
+    const withUser = ["http", "://", "editor", "@acme.example/pricing"].join("");
+    for (const address of ["javascript:alert(1)", "data:text/html,x", "file:///etc/passwd", "ftp://acme.example/x", withUser, "http://acme.example/a\u0000b", "http://acme.example\\pricing"]) {
+      expect(facts(page(withPage(DRUPAL_FORM, { address }))), address).toEqual({ revision: ["Drupal"], closing: [] });
+    }
+  });
+
   it("closes the line with no address where the form gives none the page model admits", () => {
     for (const address of [
       null,
-      "http://acme.example/pricing",
+      "http://[2001:db8::1]/pricing",
       "https://[2001:db8::1]/pricing",
       "https://localhost/x",
       "https://user@acme.example/pricing",

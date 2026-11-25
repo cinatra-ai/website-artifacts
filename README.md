@@ -14,6 +14,6 @@ Once a release of this package is published, install it from the Cinatra marketp
 ## Capabilities
 
 - Read only the changed excerpts, with removals and additions marked in place and unchanged runs elided
-- Open the page in its CMS from the link directly under the changes, drawn only for an `https://` address without credentials
+- Open the page in its CMS from the link directly under the changes, drawn for an `http://` or `https://` address without credentials; any other address draws no link
 - Read a named reason, never a blank panel, when the content cannot be drawn
 - Find a page snapshot in the Artifacts list by its row icon

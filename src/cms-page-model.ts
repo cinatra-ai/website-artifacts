@@ -45,12 +45,12 @@ export interface CmsPage {
   system: CmsPageSystem;
   page: {
     title: string;
-    /** The https address the form gives for the published page, when the
-     * identity-address rule admits it. It is drawn as text on the identity line
-     * and is never a link and never loaded. */
+    /** The http or https address the form gives for the published page, when
+     * the identity-address rule admits it. It is drawn as text on the identity
+     * line and is never a link and never loaded. */
     address: string | null;
-    /** The https address that opens the page in the CMS, when the https-address
-     * rule admits it (the link the reader opens). */
+    /** The http or https address that opens the page in the CMS, when the
+     * web-address rule admits it (the link the reader opens). */
     cmsAddress: string | null;
   };
   /** When the agent says it read the published words, as it states it: the
@@ -71,32 +71,45 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** How the text of an address the rules read starts: `https://`, in any case.
- * A browser resolves the address a link is handed against the page that draws
- * it. An https text without its two slashes (`https:acme.example/x`,
+/** How the text of an address the rules read starts: `http://` or `https://`,
+ * in any case. A browser resolves the address a link is handed against the
+ * page that draws it. A text without its two slashes (`https:acme.example/x`,
  * `https:/acme.example/../x`, `https:\acme.example\x`) is read there as a path
  * on that page's own origin, although a URL parser without a base reads it on
- * acme.example. A text that starts with `https://` is read on the same origin
- * with a base and without one, so the origin the rules below read is the
- * origin a browser requests. A text with anything before its `https://`, a
+ * acme.example. A text that starts with `http://` or `https://` is read on the
+ * same origin with a base and without one, so the origin the rules below read
+ * is the origin a browser requests. A text with anything before its scheme, a
  * space among them, is refused too. */
-const HTTPS_TEXT = /^https:\/\//i;
+const WEB_TEXT = /^https?:\/\//i;
 
-/** The address, when it may be put in front of a reader as a link: its text
- * starts with `https://` (above), it parses as URL, its protocol is https, and
- * it carries no user name or password. Else null, and no link is drawn. The
- * text is returned as it is given. Any other scheme (`http:`, `javascript:`,
- * `data:`, a relative path) is refused. A CMS may sit on a private name, so the
- * host is not restricted here: the reader opens it by their own act. */
-export function httpsAddress(value: unknown): string | null {
-  if (typeof value !== "string" || !HTTPS_TEXT.test(value)) return null;
+/** Characters an address may not hold at all: the C0 controls and the space
+ * (a browser drops a tab or a line break inside an address and a parser reads
+ * the rest, so the text a reader sees is not the address that opens), DEL and
+ * the C1 controls, and the backslash (a browser reads it as a slash in an
+ * http or https address, a parser as part of the path). */
+const UNSAFE_CHARACTER = /[\x00-\x20\x7f-\x9f\\]/;
+
+/** The address, when it may be put in front of a reader as a link or as text:
+ * a legitimate site address is `https:` and plain `http:` alike (many
+ * self-hosted and internal sites run on `http:`), and both are drawn the same
+ * way. The text starts with `http://` or `https://` (above), holds no control,
+ * whitespace or backslash character (above), parses as an absolute URL whose
+ * protocol is http or https, and carries no user name or password. Else null,
+ * and no link and no address are drawn. That refusal is a defensive floor for
+ * malformed or unsafe data, not a designed state: the design draws the link and
+ * the address in every reading. The text is returned as it is given. Any other
+ * scheme (`javascript:`, `data:`, `file:`, `blob:`, `vbscript:`, `ftp:`, a
+ * relative path) is refused. A CMS may sit on a private name, so the host is
+ * not restricted here: the reader opens it by their own act. */
+export function webAddress(value: unknown): string | null {
+  if (typeof value !== "string" || !WEB_TEXT.test(value) || UNSAFE_CHARACTER.test(value)) return null;
   let url: URL;
   try {
     url = new URL(value);
   } catch {
     return null;
   }
-  if (url.protocol !== "https:" || url.username !== "" || url.password !== "") return null;
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username !== "" || url.password !== "") return null;
   return value;
 }
 
@@ -106,16 +119,17 @@ export function httpsAddress(value: unknown): string | null {
 const LOCAL_NAMES: readonly string[] = ["localhost", "local", "internal"];
 
 /** The rule for the page's own address, which the identity line writes as
- * text: an https address (above) whose host, once one trailing dot is dropped,
- * is a name of two labels or more, none of them empty, on the default port 443
- * (the URL parser drops a written-out `:443`, so that form is admitted too).
- * Refused beyond the https-address rule: an IP literal; `home.arpa`,
+ * text: a web address (above), `http:` or `https:`, whose host, once one
+ * trailing dot is dropped, is a name of two labels or more, none of them
+ * empty, on the scheme's default port (443 for https, 80 for http: the URL
+ * parser drops a written-out default port, so that form is admitted too).
+ * Refused beyond the web-address rule: an IP literal; `home.arpa`,
  * `localhost` and a name under `.localhost`, `.local`, `.internal` or
- * `.home.arpa`; a one-label name; a name with an empty label; and any port
- * other than 443. The address is only written, never opened or loaded. Else
- * null, and the identity line carries no address. */
+ * `.home.arpa`; a one-label name; a name with an empty label; and any other
+ * port. The address is only written, never opened or loaded. Else null, and
+ * the identity line carries no address. */
 export function identityAddress(value: unknown): string | null {
-  const admitted = httpsAddress(value);
+  const admitted = webAddress(value);
   if (admitted === null) return null;
   let url: URL;
   try {
@@ -198,7 +212,7 @@ export function parseCmsPage(text: string): CmsPageParse {
       page: {
         title: page.title,
         address: identityAddress(page.address),
-        cmsAddress: httpsAddress(page.cmsAddress),
+        cmsAddress: webAddress(page.cmsAddress),
       },
       readAt: typeof value.readAt === "string" ? value.readAt : null,
       excerpts: parsed,

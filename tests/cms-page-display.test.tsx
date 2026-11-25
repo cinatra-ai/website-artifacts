@@ -128,8 +128,8 @@ for (const fixture of PAGE_FORMS) {
       }
     });
 
-    it("V7 draws no link without a CMS address that is an https address", () => {
-      for (const cmsAddress of [undefined, "javascript:alert(1)", "http://acme.example/node/7/edit"]) {
+    it("V7 draws no link without a CMS address that is an http or https address", () => {
+      for (const cmsAddress of [undefined, "javascript:alert(1)", "ftp://acme.example/node/7/edit"]) {
         const html = detail(withPage(fixture, { cmsAddress }));
         expect(html).not.toContain("<a ");
         expect(html).not.toContain("Open in the CMS");
@@ -137,6 +137,19 @@ for (const fixture of PAGE_FORMS) {
         expect(html).toContain('data-cms-page="page"');
         expect(html).toContain(">Changes<");
       }
+    });
+
+    it("V7a draws the link for a CMS on a plain http address exactly as for an https one", () => {
+      const cmsAddress = "http://acme.example/node/7/edit?x=1&y=2";
+      const html = detail(withPage(fixture, { cmsAddress }));
+      const https = detail(withPage(fixture, { cmsAddress: cmsAddress.replace("http:", "https:") }));
+      expect(all(html, /<a\b[^>]*>/g)).toHaveLength(1);
+      expect(html).toContain(`href="${escapeHtml(cmsAddress)}"`);
+      expect(html).toContain('target="_blank"');
+      expect(html).toContain('rel="noopener noreferrer"');
+      expect(html).toContain('data-action="open-in-cms -&gt; cms-opened"');
+      expect(html).toContain(">Open in the CMS</a>");
+      expect(html.replace(escapeHtml(cmsAddress), "*")).toBe(https.replace(escapeHtml(cmsAddress.replace("http:", "https:")), "*"));
     });
 
     it("V7b draws the link underlined in the app's link token, not in the near-white primary", () => {

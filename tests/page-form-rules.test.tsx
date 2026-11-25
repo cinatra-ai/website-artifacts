@@ -3,15 +3,15 @@
 // the display may put in front of a reader, and which excerpts count as changes
 // in page order. The display draws no frame of the page. An address in the
 // content is the agent's text and may name any destination, so the one link the
-// display draws (Open in the CMS) is drawn only for an https address, read as
-// text that starts with https:// so that a browser resolving it against the
-// reviewer's page reads the origin the rule read; the page's own address is
-// only written on the identity line, under a stricter rule.
+// display draws (Open in the CMS) is drawn only for an http or https address,
+// read as text that starts with http:// or https:// so that a browser resolving
+// it against the reviewer's page reads the origin the rule read; the page's own
+// address is only written on the identity line, under a stricter rule.
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { httpsAddress, parseCmsPage } from "../src/cms-page-model";
+import { parseCmsPage, webAddress } from "../src/cms-page-model";
 import * as pkg from "../src/index";
 import { CmsPageView } from "../src/cms-page-view";
 import PageDiffDetail from "../src/renderers/detail";
@@ -43,7 +43,7 @@ const paragraph = (region: string, position: number, published: string, proposed
   proposed,
 });
 
-describe("the identity-address rule refuses a page address at an IP literal, at localhost or home.arpa or a name under .localhost, .local, .internal or .home.arpa, at a one-label name or a name with an empty label, or at a port other than the default 443", () => {
+describe("the identity-address rule refuses a page address at an IP literal, at localhost or home.arpa or a name under .localhost, .local, .internal or .home.arpa, at a one-label name or a name with an empty label, or at a port other than the scheme's default (443 for https, 80 for http)", () => {
   it("admits no page address at an IP literal, and the display draws no frame and no address for it", () => {
     for (const address of [
       `https://${LOOPBACK}/`,
@@ -128,12 +128,40 @@ const SLASHLESS_FORMS = ["https:acme.example/pricing", "https:/acme.example/../a
 const PREFIXED_FORMS = [` ${PAGE_ADDRESS}`, `\t${PAGE_ADDRESS}`];
 
 /** Addresses of any other scheme, which an agent's content may carry. */
-const OTHER_SCHEMES = ["http://acme.example/node/7/edit", "javascript:alert(1)", "data:text/html,<p>x</p>", "//acme.example/node/7/edit", "/node/7/edit", "ftp://acme.example/x"];
+const OTHER_SCHEMES = [
+  "javascript:alert(1)",
+  "data:text/html,<p>x</p>",
+  "file:///etc/passwd",
+  "blob:https://acme.example/0f1e",
+  "vbscript:msgbox(1)",
+  "//acme.example/node/7/edit",
+  "/node/7/edit",
+  "ftp://acme.example/x",
+];
 
-describe("a browser resolves an address against the reviewer's page, so only a text that starts with https:// is admitted", () => {
-  it("refuses a page address that does not start with https://", () => {
-    for (const address of [...SLASHLESS_FORMS, ...PREFIXED_FORMS]) {
-      expect(httpsAddress(address), address).toBeNull();
+/** Credentials in the address, assembled at run time so no such literal is in the source. */
+const withUserinfo = (scheme: string, userinfo: string): string => `${scheme}://${userinfo}@acme.example/node/7/edit`;
+const CREDENTIAL_FORMS = [withUserinfo("https", "editor"), withUserinfo("http", "editor"), withUserinfo("http", ["editor", "x"].join(":"))];
+
+/** Addresses that do not parse as an absolute URL, or hold a control, whitespace or backslash character a browser reads differently from a parser. */
+const UNPARSEABLE_FORMS = ["http://", "https://", "http://[::1/", "https://exa^mple.com/", "http://acme.example:99999/", "not an address", ""];
+const CONTROL_FORMS = [
+  "http://acme.example/a\u0000b",
+  "https://acme.example/a\tb",
+  "http://acme.example/a\nb",
+  "https://acme.example/a\rb",
+  "http://acme.example/a b",
+  "https://acme.example/a\u007fb",
+  "http://acme.example\\node\\7",
+  "https://acme.example\\node\\7",
+  "http://acme.example/node/\\..\\x",
+  "https://acme.example/x\u0085y",
+];
+
+describe("a browser resolves an address against the reviewer's page, so only a text that starts with http:// or https:// is admitted", () => {
+  it("refuses a page address that does not start with http:// or https://", () => {
+    for (const address of [...SLASHLESS_FORMS, ...PREFIXED_FORMS, "http:acme.example/pricing", "http:\\acme.example\\pricing"]) {
+      expect(webAddress(address), address).toBeNull();
       expect(pkg.identityAddress(address), address).toBeNull();
       expect(parsedAddress(address), address).toBeNull();
     }
@@ -145,14 +173,24 @@ describe("a browser resolves an address against the reviewer's page, so only a t
     }
   });
 
-  it("draws no CMS link for a CMS address that is not an https address, on the page of either system, through the parser and without it", () => {
+  it("draws no CMS link and no address for an address that is not an http or https address, on the page of either system, through the parser and without it", () => {
     for (const fixture of PAGE_FORMS) {
       // The fixture's own CMS address still draws the link.
       expect(detail(fixture.form)).toContain("data-cms-open");
-      for (const cmsAddress of [...SLASHLESS_FORMS, ...PREFIXED_FORMS, ...OTHER_SCHEMES, "https://editor@acme.example/x", undefined, 42]) {
+      for (const cmsAddress of [
+        ...SLASHLESS_FORMS,
+        ...PREFIXED_FORMS,
+        ...OTHER_SCHEMES,
+        ...CREDENTIAL_FORMS,
+        ...UNPARSEABLE_FORMS,
+        ...CONTROL_FORMS,
+        undefined,
+        42,
+      ]) {
         const parsed = parseCmsPage(text(withPage(fixture, { cmsAddress })));
         expect(parsed.ok, String(cmsAddress)).toBe(true);
         expect(parsed.ok ? parsed.page.page.cmsAddress : "unparsed", String(cmsAddress)).toBeNull();
+        if (typeof cmsAddress === "string") expect(parsedAddress(cmsAddress), cmsAddress).toBeNull();
         const html = detail(withPage(fixture, { cmsAddress }));
         expect(html, String(cmsAddress)).toContain('data-cms-page="page"');
         expect(html, String(cmsAddress)).not.toContain("data-cms-open");
@@ -173,6 +211,30 @@ describe("a browser resolves an address against the reviewer's page, so only a t
     for (const cmsAddress of ["HTTPS://acme.example/node/7/edit", "https://cms.corp/node/7/edit", "https://acme.example:8443/wp-admin/"]) {
       const html = detail(withPage(WORDPRESS_FORM, { cmsAddress }));
       expect(html, cmsAddress).toContain(`href="${cmsAddress}"`);
+    }
+  });
+
+  it("admits a CMS on a plain http address, on the page of either system, with the link's attributes unchanged", () => {
+    for (const fixture of PAGE_FORMS) {
+      for (const cmsAddress of ["http://acme.example/node/7/edit", "HTTP://acme.example/node/7/edit", "http://cms.corp:8080/wp-admin/", "http://10.0.0.5/wp-admin/"]) {
+        expect(webAddress(cmsAddress), cmsAddress).toBe(cmsAddress);
+        const html = detail(withPage(fixture, { cmsAddress }));
+        expect(html, cmsAddress).toContain(`href="${cmsAddress}"`);
+        expect(html, cmsAddress).toContain('target="_blank" rel="noopener noreferrer"');
+        expect(html, cmsAddress).toContain('data-action="open-in-cms -&gt; cms-opened"');
+        expect(html, cmsAddress).toContain(">Open in the CMS</a>");
+      }
+    }
+  });
+
+  it("admits the page's own address on a plain http site on the same terms as https, the identity rule's other refusals unchanged", () => {
+    for (const address of ["http://acme.example/pricing", "http://acme.example:80/pricing", "http://www.acme.example./pricing"]) {
+      expect(parsedAddress(address), address).toBe(address);
+      expect(pkg.identityAddress(address), address).toBe(address);
+    }
+    for (const address of ["http://acme.example:8080/pricing", "http://acme.example:443/pricing", "http://localhost/", `http://${LOOPBACK}/`, "http://[::1]/", "http://intranet/", ...CONTROL_FORMS, ...CREDENTIAL_FORMS]) {
+      expect(parsedAddress(address), address).toBeNull();
+      expect(pkg.identityAddress(address), address).toBeNull();
     }
   });
 });
