@@ -112,7 +112,14 @@ for (const fixture of PAGE_FORMS) {
       }
     });
 
-    it("V6 draws no frame, no gap box and no timer-driven markup in any reading: open, continued, a floor-free v2 mount", () => {
+    // STATIC MARKUP ONLY. renderToStaticMarkup never mounts the component, runs
+    // an effect or fires a timer, so this arm proves what the first server
+    // render draws and nothing about markup that appears later (the removed
+    // frame's gap box appeared after a ten-second timer). This repo has no DOM
+    // test environment and adds none: the absence of any later change is pinned
+    // at the source in tests/no-browser-load.test.ts, which fails if a file under
+    // src/ references a timer, an observer or an effect hook.
+    it("V6 draws no frame, no gap box and no gap text in the first server render of any reading: open, continued, a floor-free v2 mount", () => {
       const v5 = (review: unknown) => ({ ...pageProps(fixture.form), propsApiVersion: 5, review, edit: { kind: "read-only", channelVersion: 2, reason: "read-only-surface" } });
       for (const snapshot of [
         pageProps(fixture.form),

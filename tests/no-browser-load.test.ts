@@ -101,6 +101,26 @@ const FORBIDDEN: Array<{ what: string; pattern: RegExp; probe: string }> = [
     pattern: /(?:globalThis|window|self)\s*\[/,
     probe: 'const request = globalThis["fetch"];',
   },
+  // THE DISPLAY CHANGES NOTHING AFTER ITS FIRST RENDER. The removed page frame
+  // drew a gap box once a ten-second timer elapsed, from an effect that set the
+  // timer. A static render cannot see that (it never runs an effect), and this
+  // repo has no DOM environment to mount one in, so the source is scanned for
+  // every way a display schedules later work.
+  {
+    what: "a timer or a frame callback",
+    pattern: /\b(?:setTimeout|setInterval|setImmediate|requestAnimationFrame|requestIdleCallback|queueMicrotask)\b/,
+    probe: "const t = setTimeout(() => setElapsed(10000), 10000);",
+  },
+  {
+    what: "an observer",
+    pattern: /\b(?:MutationObserver|ResizeObserver|IntersectionObserver|PerformanceObserver)\b/,
+    probe: "new ResizeObserver(() => measure()).observe(node);",
+  },
+  {
+    what: "an effect hook",
+    pattern: /\b(?:useEffect|useLayoutEffect|useInsertionEffect)\b/,
+    probe: "useEffect(() => { start(); }, []);",
+  },
   { what: "a remote module load", pattern: /import\s*\(\s*[`'"]https?:/i, probe: 'await import("https://x.test/m.js");' },
 ];
 
