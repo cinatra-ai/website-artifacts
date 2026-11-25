@@ -45,10 +45,11 @@ describe("the one page renderer names itself on the root of what it draws", () =
     });
   }
 
-  it("draws the WordPress page and the Drupal page as one drawing, apart from the system and the CMS link", () => {
+  it("draws the WordPress page and the Drupal page as one drawing, apart from the system, the CMS link and the display's anchor name", () => {
     const [wordpress, drupal] = PAGE_FORMS.map((fixture) =>
       renderToStaticMarkup(<PageDiffDetail {...pageProps(fixture.form)} />)
         .replace(`data-cms-system="${fixture.system}"`, 'data-cms-system="*"')
+        .replace(/data-conformance-id="(?:cms|drupal)-page-display"/, 'data-conformance-id="*"')
         .replace(fixture.cmsAddress.replace(/&/g, "&amp;"), "*"),
     );
     expect(wordpress).toBe(drupal);

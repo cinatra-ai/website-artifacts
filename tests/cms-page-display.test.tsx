@@ -1,20 +1,18 @@
 // @vitest-environment node
 // The CMS page display (cinatra#3092), relocated into the one page renderer
-// (cinatra#4366): one view drawn from the content alone — the frame's place
-// (the page embedded in its frame, or the gap named there), beneath it only
-// the changed excerpts in the page's own formatting, and a link that opens the
-// page in the CMS. Every arm runs for both systems the form serves. Which
-// address the frame requests is pinned in tests/page-form-rules.test.tsx.
+// (cinatra#4366): one view drawn from the content alone — only the changed
+// excerpts in the page's own formatting, and directly under them a link that
+// opens the page in the CMS. It draws no frame of the page and no box in its
+// place (specs/app-artifact-review.html §XI.8). Every arm runs for both
+// systems the form serves. Which address the link may carry is pinned in
+// tests/page-form-rules.test.tsx.
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FRAME_WATCHDOG_MS, frameState } from "../src/cms-page-model";
 import { contentFloorMessage, resolveArtifactTextView } from "../src/content-view";
 import CmsSnapshotDetail from "../src/renderers/detail";
 import { PAGE_ADDRESS, PAGE_FORMS, pageProps, withPage } from "./cms-page-fixture";
-
-const GAP = "The page cannot be shown here. The changes are below.";
 
 function all(html: string, pattern: RegExp): string[] {
   return Array.from(html.matchAll(pattern), (match) => match[1]);
@@ -32,26 +30,41 @@ for (const fixture of PAGE_FORMS) {
     const detail = (document: unknown = fixture.form): string =>
       renderToStaticMarkup(<CmsSnapshotDetail {...pageProps(document)} />);
 
-    it("V1 draws one view: the frame's place, the changes, the link", () => {
+    it("V1 draws one view: the changes, then the link directly under them", () => {
       const fetchSpy = vi.fn();
       vi.stubGlobal("fetch", fetchSpy);
       const html = detail();
       expect(fetchSpy).not.toHaveBeenCalled();
-      // The frame's place opens the view: the frame, or the gap named there.
-      const place = /data-cms-page="page"[^>]*>(<iframe\b|<div role="status")/.exec(html);
-      expect(place).not.toBeNull();
-      expect(html).toContain(">Changes<");
-      expect(html.indexOf(place![0])).toBeLessThan(html.indexOf(">Changes<"));
+      // The view opens with its label: nothing is drawn ahead of the changes.
+      expect(html).toMatch(/data-cms-page="page"[^>]*><p\b[^>]*data-cms-page-label[^>]*>Changes<\/p>/);
       const links = all(html, /<a\b([^>]*)>/g);
       expect(links).toHaveLength(1);
       expect(links[0]).toContain(`href="${escapeHtml(fixture.cmsAddress)}"`);
       expect(links[0]).toContain('target="_blank"');
       expect(links[0]).toContain('rel="noopener noreferrer"');
+      expect(links[0]).toContain('data-action="open-in-cms -&gt; cms-opened"');
       expect(html).toContain(">Open in the CMS</a>");
-      expect(html.indexOf(">Changes<")).toBeLessThan(html.indexOf("Open in the CMS"));
+      // The order: the label, the excerpts, the elisions among them, the link.
+      const label = html.indexOf(">Changes<");
+      const lastExcerpt = html.lastIndexOf('data-cms-excerpt="');
+      const link = html.indexOf("Open in the CMS");
+      expect(label).toBeGreaterThan(-1);
+      expect(label).toBeLessThan(html.indexOf('data-cms-excerpt="'));
+      expect(lastExcerpt).toBeLessThan(link);
+      // Nothing sits between the last excerpt and the link but the closing of the excerpts.
+      expect(html.slice(html.indexOf("</ul>", lastExcerpt))).toMatch(/^<\/ul><\/div><a\b/);
       expect(html).toContain(`data-cms-system="${fixture.system}"`);
       expect(html).toContain('data-cms-page="page"');
       expect(html).toContain('data-revision="rev_1"');
+    });
+
+    it("V1b binds the excerpts to the field the design names, inside the display's anchor", () => {
+      const html = detail();
+      expect(html).toContain('data-field="excerpts=representation.changed-excerpts"');
+      const root = /^<div\b[^>]*data-conformance-id="(cms|drupal)-page-display"/.exec(html);
+      expect(root?.[1]).toBe(fixture.system === "drupal" ? "drupal" : "cms");
+      // The link is inside the element that carries the anchor.
+      expect(html.indexOf("data-action=")).toBeGreaterThan(html.indexOf("data-conformance-id="));
     });
 
     it("V2 draws a heading as a heading, a paragraph as a paragraph, a list item as a list item", () => {
@@ -87,30 +100,70 @@ for (const fixture of PAGE_FORMS) {
       expect(all(html, /<[a-z]+\b[^>]*aria-hidden="true"[^>]*>(…)</g)).toEqual(["…", "…"]);
     });
 
-    it("V5 names the gap in the frame's place where the page has no framable address", () => {
-      const html = detail(withPage(fixture, { address: "http://acme.example/pricing" }));
-      expect(html).not.toContain("<iframe");
-      expect(html).toMatch(new RegExp(`role="status"[^>]*>${GAP}<`));
-      expect(html.indexOf(GAP)).toBeLessThan(html.indexOf(">Changes<"));
-      expect(all(html, /<del\b[^>]*>([^<]*)<\/del>/g)).toHaveLength(3);
-      expect(html).toContain(">Open in the CMS</a>");
+    it("V5 draws no frame, no gap box and no word about the page's absence, whatever the page address is", () => {
+      for (const address of [undefined, "http://acme.example/pricing", "https://localhost/", "https://acme.example/pricing"]) {
+        const html = detail(withPage(fixture, { address }));
+        expect(html, String(address)).not.toContain("<iframe");
+        expect(html, String(address)).not.toContain("data-cms-page-gap");
+        expect(html, String(address)).not.toContain('role="status"');
+        expect(html, String(address)).not.toMatch(/cannot be shown|changes are below/i);
+        expect(all(html, /<del\b[^>]*>([^<]*)<\/del>/g), String(address)).toHaveLength(3);
+        expect(html, String(address)).toContain(">Open in the CMS</a>");
+      }
     });
 
-    it("V6 names the gap once the watchdog elapses without a load", () => {
-      expect(FRAME_WATCHDOG_MS).toBe(10000);
-      expect(frameState({ address: PAGE_ADDRESS, loaded: false, elapsedMs: 10000 })).toBe("gap");
-      expect(frameState({ address: PAGE_ADDRESS, loaded: false, elapsedMs: 9999 })).toBe("frame");
-      expect(frameState({ address: PAGE_ADDRESS, loaded: true, elapsedMs: 10000 })).toBe("frame");
-      expect(frameState({ address: null, loaded: false, elapsedMs: 0 })).toBe("gap");
+    // STATIC MARKUP ONLY. renderToStaticMarkup never mounts the component, runs
+    // an effect or fires a timer, so this arm proves what the first server
+    // render draws and nothing about markup that appears later (the removed
+    // frame's gap box appeared after a ten-second timer). This repo has no DOM
+    // test environment and adds none: the absence of any later change is pinned
+    // at the source in tests/no-browser-load.test.ts, which fails if a file under
+    // src/ references a timer, an observer or an effect hook.
+    it("V6 draws no frame, no gap box and no gap text in the first server render of any reading: open, continued, a floor-free v2 mount", () => {
+      const v5 = (review: unknown) => ({ ...pageProps(fixture.form), propsApiVersion: 5, review, edit: { kind: "read-only", channelVersion: 2, reason: "read-only-surface" } });
+      for (const snapshot of [
+        pageProps(fixture.form),
+        v5({ reading: "pending" }),
+        v5({ reading: "continued", decidedAt: "2026-10-07T09:20:00.000Z" }),
+        v5(undefined),
+      ]) {
+        const html = renderToStaticMarkup(<CmsSnapshotDetail {...snapshot} />);
+        expect(html).not.toContain("<iframe");
+        expect(html).not.toContain("data-cms-page-frame");
+        expect(html).not.toContain("data-cms-page-gap");
+        expect(html).not.toMatch(/cannot be shown/i);
+      }
     });
 
-    it("V7 draws no link without a CMS address", () => {
-      for (const cmsAddress of [undefined, "javascript:alert(1)", "http://acme.example/node/7/edit"]) {
+    it("V7 draws no link without a CMS address that is an http or https address", () => {
+      for (const cmsAddress of [undefined, "javascript:alert(1)", "ftp://acme.example/node/7/edit"]) {
         const html = detail(withPage(fixture, { cmsAddress }));
         expect(html).not.toContain("<a ");
         expect(html).not.toContain("Open in the CMS");
+        expect(html).not.toContain("open-in-cms");
         expect(html).toContain('data-cms-page="page"');
+        expect(html).toContain(">Changes<");
       }
+    });
+
+    it("V7a draws the link for a CMS on a plain http address exactly as for an https one", () => {
+      const cmsAddress = "http://acme.example/node/7/edit?x=1&y=2";
+      const html = detail(withPage(fixture, { cmsAddress }));
+      const https = detail(withPage(fixture, { cmsAddress: cmsAddress.replace("http:", "https:") }));
+      expect(all(html, /<a\b[^>]*>/g)).toHaveLength(1);
+      expect(html).toContain(`href="${escapeHtml(cmsAddress)}"`);
+      expect(html).toContain('target="_blank"');
+      expect(html).toContain('rel="noopener noreferrer"');
+      expect(html).toContain('data-action="open-in-cms -&gt; cms-opened"');
+      expect(html).toContain(">Open in the CMS</a>");
+      expect(html.replace(escapeHtml(cmsAddress), "*")).toBe(https.replace(escapeHtml(cmsAddress.replace("http:", "https:")), "*"));
+    });
+
+    it("V7b draws the link underlined in the app's link token, not in the near-white primary", () => {
+      const link = /<a\b[^>]*style="([^"]*)"/.exec(detail())?.[1] ?? "";
+      expect(link).toContain("color:var(--info, #364e81)");
+      expect(link).toContain("text-decoration:underline");
+      expect(link).not.toContain("--primary");
     });
 
     it("V8 draws no tab strip, no heading of its own, no button and no Verified", () => {
@@ -210,13 +263,18 @@ for (const fixture of PAGE_FORMS) {
       review,
       edit: { kind: "read-only", channelVersion: 2, reason: "read-only-surface" },
     });
-    const normalizeVersion = (html: string): string => html.replace('data-props-api-version="5"', 'data-props-api-version="2"');
+    // The continued reading's anchor (tests/cms-page-anchors.test.tsx) draws no
+    // words; it is taken out before the view is compared with the legacy one.
+    const READING_ANCHOR = /<p data-conformance-id="(?:cms|drupal)-page-continued-reading"[^>]*>(?:<span [^>]*><\/span>)?<\/p>/g;
+    const withoutReadingAnchor = (html: string): string => html.replace(READING_ANCHOR, "");
+    const normalizeVersion = (html: string): string =>
+      withoutReadingAnchor(html.replace('data-props-api-version="5"', 'data-props-api-version="2"'));
     const assertNoPublicationSentence = (html: string): void => {
       expect(html).not.toContain("The change went to the site");
       expect(html).not.toContain("published it at");
-      expect(html).not.toContain("cms-page-continued-reading");
       expect(html).not.toContain("09:20");
-      expect(html).not.toMatch(/continued|decided on the revision above/i);
+      expect(withoutReadingAnchor(html)).not.toMatch(/continued|decided on the revision above/i);
+      expect(withoutReadingAnchor(html)).not.toContain("review.");
     };
 
     it("admits v5 while retaining the complete legacy view, frozen input and read-only controls", () => {

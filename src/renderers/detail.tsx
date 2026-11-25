@@ -2,9 +2,10 @@
 // @cinatra-ai/website-artifacts:page-diff, that both the WordPress and the
 // Drupal extension draw their pages through.
 //
-// ONE VIEW: the frame's place, the changes beneath it and the link under
-// them, drawn by `CmsPageView` from the page content form an agent extension
-// files. The root names the renderer that drew it, on the page and on every
+// ONE VIEW: the changes and the link that opens the page in the CMS directly
+// under them, drawn by `CmsPageView` from the page content form an agent
+// extension files. It draws no frame of the page and no box in its place: the
+// host hands a display no origin of the connected site. The root names the renderer that drew it, on the page and on every
 // floor alike.
 //
 // IT DRAWS FROM THE CONTENT CHANNEL AND FROM NOTHING ELSE. The form arrives on
@@ -14,15 +15,22 @@
 // a display reaching for bytes from the browser carries no credential and
 // paints an empty plate.
 //
-// IT CAUSES NO LOAD. The page view's frame (renderers/page-frame.tsx) requests
-// an address only on the origin of the site the view is handed, which is to
-// come from a record the host keeps, because the address the form gives is the
-// agent's text and may name any destination. This display reads no site from
-// the snapshot and hands the page view none (site={null}): the frame's place
-// names the gap, and the changes beneath it are drawn as always. Within the
-// source of this package nothing hands the page view a site; an application
-// can hand one only by mounting the exported CmsPageView itself, and this
-// display only in a later version that reads one.
+// IT CAUSES NO LOAD. Nothing it draws has a subresource address; the only
+// address in the markup is the CMS link's href, which the browser opens only
+// when the reader follows it, and which is drawn only for an http or https
+// address (webAddress of the page model).
+//
+// THE CONFORMANCE ANCHORS (cinatra#3092, sections XI.8 and XI.7). The root
+// names the display: `cms-page-display` for a WordPress page and on every
+// floor, `drupal-page-display` for a Drupal page, because the drawing gives the
+// one view a name per platform. Once the review is continued (the version 5
+// snapshot's `review.reading`), the continued reading's anchor is drawn last
+// inside the root, under the view: a paragraph binding the reading in the
+// `empty` state, with the decision time's span when the host handed
+// `review.decidedAt`. It draws no words, because its sentence is a claim about
+// what the site published and the host hands no `review.effect`, and it takes no
+// part in the layout: out of the flow with no size, so the root's column counts
+// no item and adds no gap for it. Nothing a person can see changes.
 //
 // NEVER BLANK, NEVER THROWN: content it cannot draw becomes a named floor under
 // the artifact's title and its download link.
@@ -35,8 +43,7 @@
 // from the module it resolved for this slot, so this module is NOT a client
 // module: a "use client" module reaches a server as client references, whose
 // string is no string and whose function throws when called. It holds no
-// state and no handler of its own; the page view and its frame, which do, keep
-// their own "use client".
+// state and no handler of its own; the page view keeps its own "use client".
 
 import { type CSSProperties, type ReactNode } from "react";
 
@@ -107,6 +114,48 @@ function floorTitle(props: unknown): string {
   return typeof title === "string" && title.trim() !== "" ? title : FALLBACK_TITLE;
 }
 
+/** The display's conformance anchor names, per platform the form serves. */
+const ANCHORS = {
+  wordpress: { display: "cms-page-display", reading: "cms-page-continued-reading" },
+  drupal: { display: "drupal-page-display", reading: "drupal-page-continued-reading" },
+} as const;
+
+/** A canonical ISO instant, the one form the host hands a decision time in. */
+function isInstant(value: unknown): value is string {
+  return typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
+    && Number.isFinite(Date.parse(value))
+    && new Date(value).toISOString() === value;
+}
+
+/** The anchor takes no part in the layout: out of the flow, so the column
+ * above (a flex container with a gap) counts no item for it and adds no gap, and
+ * with no size, no margin, no padding and no border, so it draws nothing. A
+ * `display: contents` box would instead hand its span to that column as an item. */
+const anchorStyle: CSSProperties = {
+  position: "absolute",
+  width: 0,
+  height: 0,
+  margin: 0,
+  padding: 0,
+  border: 0,
+  overflow: "hidden",
+};
+
+/** The continued reading's anchor: present only in a version 5 snapshot whose
+ * review reads continued. The review is read loosely: a shape this display does
+ * not know is no continued reading. */
+function ContinuedReading({ id, review }: { id: string; review: unknown }): ReactNode {
+  if (review === null || typeof review !== "object") return null;
+  const { reading, decidedAt } = review as { reading?: unknown; decidedAt?: unknown };
+  if (reading !== "continued") return null;
+  return (
+    <p data-conformance-id={id} data-field="reading=review.reading" data-state="empty" style={anchorStyle}>
+      {isInstant(decidedAt) ? <span data-field="decision=review.decidedAt" /> : null}
+    </p>
+  );
+}
+
 /**
  * The default-exported detail renderer. The host mounts this in the main realm
  * with the shared React singleton; it owns no React root.
@@ -137,18 +186,21 @@ export default function PageDiffDetail(props: ArtifactRendererProps): ReactNode 
       ? PROPS_API_VERSION
       : undefined;
   if (view.kind === "page") {
-    // THE PAGE CONTENT FORM is one view: the frame's place, the changes beneath
-    // it and the link under them — nothing else around it.
+    // THE PAGE CONTENT FORM is one view: the changes and the link under them —
+    // nothing else around it.
+    const anchors = ANCHORS[view.page.system];
+    const review = isDetailSnapshot ? (props as { review?: unknown }).review : undefined;
     return (
-      <div style={wrapStyle} data-cms-artifact-detail data-renderer={PAGE_DIFF_RENDERER} data-props-api-version={propsApiVersion}>
-        <CmsPageView page={view.page} revisionId={view.revisionId} site={null} />
+      <div style={wrapStyle} data-conformance-id={anchors.display} data-cms-artifact-detail data-renderer={PAGE_DIFF_RENDERER} data-props-api-version={propsApiVersion}>
+        <CmsPageView page={view.page} revisionId={view.revisionId} />
+        <ContinuedReading id={anchors.reading} review={review} />
       </div>
     );
   }
   const title = floorTitle(props);
   const download = byteDownloadHref(props);
   return (
-    <div style={wrapStyle} data-cms-artifact-detail data-renderer={PAGE_DIFF_RENDERER} data-props-api-version={propsApiVersion}>
+    <div style={wrapStyle} data-conformance-id={ANCHORS.wordpress.display} data-cms-artifact-detail data-renderer={PAGE_DIFF_RENDERER} data-props-api-version={propsApiVersion}>
       <div style={headerStyle}>
         <p style={titleStyle} title={title}>
           {title}

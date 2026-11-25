@@ -1,34 +1,41 @@
 "use client";
 
 // THE CMS PAGE — ONE VIEW, no tab strip. Drawn from the page content form an
-// agent extension files; the view is also handed the revision it stamps and
-// the site its frame is bound to:
+// agent extension files; the view is also handed the revision it stamps:
 //
-//   the page itself, embedded in its frame at the address the form gives, only
-//     when the frame-address rule admits it and it is on the origin of the
-//     site the view is handed (boundFrameAddress); with no such site, or any
-//     other address, the gap named in its place;
-//   beneath it 'Changes' and a diff of only the changed excerpts, each in the
-//     page's own formatting, what the change removes and adds marked in place
-//     and the unchanged run between two excerpts left out under an elision;
-//   under the excerpts, the link that opens the page in the CMS.
+//   'Changes' and a diff of only the changed excerpts, each in the page's own
+//     formatting, what the change removes and adds marked in place and the
+//     unchanged run between two excerpts left out under an elision;
+//   directly under the excerpts, with nothing between, the link that opens the
+//     page in the CMS: the reader's only way to the page itself.
 //
-// The view draws no heading of its own, no status and no marker: the surface
-// around it draws those. The words are plain text; no markup is taken from the
-// content.
+// The view draws no frame of the page and no box or gap in its place: the host
+// hands a display no origin of the connected site, and the excerpts are the part
+// that always exists. It draws no heading of its own, no status and no marker:
+// the surface around it draws those. The words are plain text; no markup is
+// taken from the content.
+//
+// THE LINK'S ADDRESS comes from the artifact content, which an agent wrote, so
+// it is drawn only when webAddress admits it: a text that starts with
+// `http://` or `https://`, holds no control, whitespace or backslash character,
+// parses as an http or https URL and carries no user name or password. Plain
+// `http:` is a legitimate site address (self-hosted and internal sites) and
+// draws the link as `https:` does: the design draws Open in the CMS the same
+// way in every reading. Any other text (`javascript:`, `data:`, `file:`, `blob:`,
+// a relative path, a text without its two slashes, credentials, an address that
+// does not parse) draws no link: that is a defensive floor for malformed or
+// unsafe data, not a state the design draws.
 
 import { type CSSProperties, type ReactNode } from "react";
 
 import {
-  boundFrameAddress,
   excerptGroups,
-  framableAddress,
+  webAddress,
   wordDiff,
   type CmsPage,
   type CmsPageExcerpt,
   type CmsPageExcerptEntry,
 } from "./cms-page-model";
-import { PageFrame } from "./renderers/page-frame";
 
 const rootStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 };
 
@@ -77,10 +84,17 @@ const insStyle: CSSProperties = {
   textDecoration: "none",
 };
 
+// The design's `.btn.link`: the link colour, underlined. `--info` is the
+// design's indigo in the light palette and a lighter blue that reads on the
+// dark ground in the dark palette, and the app declares it in the document of
+// the artifact page, the review card and the review island alike. (`--primary`
+// is near-white in the dark palette; `--indigo-ink` does not move with the
+// theme and is too dark on the dark ground.)
 const linkStyle: CSSProperties = {
   fontSize: "13px",
-  color: "var(--primary, #2563eb)",
-  textDecoration: "none",
+  color: "var(--info, #364e81)",
+  textDecoration: "underline",
+  textUnderlineOffset: "3px",
   alignSelf: "flex-start",
 };
 
@@ -161,23 +175,27 @@ function Excerpts({ entries }: { entries: CmsPageExcerptEntry[] }): ReactNode {
   return <>{out}</>;
 }
 
-/** The one view: the frame's place, the changed excerpts beneath it, the link
- * under them. `site` is to be the site's own address, from a record the host
- * keeps and never from the content: null when there is none, and then the
- * frame requests nothing. */
-export function CmsPageView({ page, revisionId, site }: { page: CmsPage; revisionId: string; site: string | null }): ReactNode {
-  const cmsAddress = framableAddress(page.page.cmsAddress);
+/** The one view: the changed excerpts, the link that opens the page in the CMS
+ * directly under them. */
+export function CmsPageView({ page, revisionId }: { page: CmsPage; revisionId: string }): ReactNode {
+  const cmsAddress = webAddress(page.page.cmsAddress);
   return (
     <div style={rootStyle} data-cms-page="page" data-cms-system={page.system} data-revision={revisionId}>
-      <PageFrame address={boundFrameAddress(page.page.address, site)} title={page.page.title} />
       <p style={labelStyle} data-cms-page-label>
         Changes
       </p>
-      <div style={excerptsStyle} data-cms-page-excerpts>
+      <div style={excerptsStyle} data-cms-page-excerpts data-field="excerpts=representation.changed-excerpts">
         <Excerpts entries={excerptGroups(page.excerpts)} />
       </div>
       {cmsAddress !== null ? (
-        <a style={linkStyle} href={cmsAddress} target="_blank" rel="noopener noreferrer" data-cms-open>
+        <a
+          style={linkStyle}
+          href={cmsAddress}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-cms-open
+          data-action="open-in-cms -> cms-opened"
+        >
           Open in the CMS
         </a>
       ) : null}
